@@ -1,5 +1,4 @@
 import socket
-import filetype
 import time
 import os
 import magic
@@ -31,7 +30,7 @@ class Server:
     file = None
     path = None
 
-    def __init__(self, ip, port, buff_size=100, c_count=5):
+    def __init__(self, ip, port, buff_size=4096, c_count=1):
         # c_count is connections count
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
         self.server_address = (str(ip), int(port))
@@ -49,59 +48,49 @@ class Server:
 
     def run(self):
         while True:
+            print(f'\n\nWaiting for requests on {self.server_address[0]}:{self.server_address[1]} ...')
+            # Wait for an incomming connection and accept
+            self.client_socket, self.client_address = self.server_socket.accept()
+            print('Connection accepted from:', self.client_address)
             try:
-                print(f'\n\nWaiting for requests on {self.server_address[0]}:{self.server_address[1]} ...')
-                # Wait for an incomming connection and accept
-                self.client_socket, self.client_address = self.server_socket.accept()
-                print('Connection accepted from:', self.client_address)
-
-                # read the request
-                # getting full request from buffer then tokenizing it
-                # request is a dictionary with all headrs and content
-                request_raw = self.get_from_buffer()
-                if request_raw:
-                    self.request = self.tokenize_request(request_raw)
-                    print(f'Request : {self.request["method"]} {self.request["url"]}')
-                    # loading file in memory (because this is a small test server)
-                    # this way server doesnt need to open and close file everytime
-                    self.file, self.path = self.url_manager()
-                    # creating responses and handling each method
-                    if self.request['method'] == 'GET':
+                while True:
+                    print()
+                    try:
+                        # read the request
+                        # getting full request from buffer then tokenizing it
+                        # request is a dictionary with all headrs and content
+                        request_raw = self.client_socket.recv(self.buffer_size).decode('utf-8')
+                        if request_raw:
+                            self.request = self.tokenize_request(request_raw)
+                            print(f'Request : {self.request["method"]} {self.request["url"]}')
+                            # loading file in memory (because this is a small test server)
+                            # this way server doesnt need to open and close file everytime
+                            self.file, self.path = self.url_manager()
+                            # creating responses and handling each method
+                            if self.request['method'] == 'GET':
+                                self.response = self.create_get_response()
+                            else:
+                                raise ServerError(501)
+                        else:
+                            break
+                    except ServerError as e:
+                        # handling errors in server with custom exception class
+                        # and setting status code of error as server response status code
+                        # then creating suitable response for error
+                        self.status_code = int(e.status)
                         self.response = self.create_get_response()
-                    else:
-                        raise ServerError(501)
-
-            except ServerError as e:
-                # handling errors in server with custom exception class
-                # and setting status code of error as server response status code
-                # then creating suitable response for error
-                self.status_code = int(e.status)
-                self.response = self.create_get_response()
-                print('SERVER ERROR :', e.status, e.message)
-            finally:
-                # sending response to client
-                try:
+                        print('SERVER ERROR :', e.status, e.message)
+                    # sending response to client
                     self.client_socket.sendall(self.response)
                     print(f'Response: {self.status_code} {self.request["method"]} {self.request["url"]}')
-                except:
-                    pass
-                # try:
-                #     print('\n' + self.response.decode('utf-8'))
-                # except:
-                #     print(self.response, '\n')
+                    # try:
+                    #     print('\n' + self.response.decode('utf-8'))
+                    # except:
+                    #     print(self.response, '\n')
+                    print()
+            finally:
                 self.client_socket.close()
                 print('Client socket closed')
-
-    def get_from_buffer(self):
-        data = b''
-        while True:
-            buff = self.client_socket.recv(self.buffer_size)
-            # get data from buffer object until it is empty
-            data += buff
-            if len(buff) < self.buffer_size:
-                break
-        # decoding input data from binary to string
-        return data.decode('utf-8')
 
     def tokenize_request(self, request):
         request_dict = {'method': '---', 'url': '/'}
