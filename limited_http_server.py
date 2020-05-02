@@ -1,9 +1,12 @@
 import socket
 import filetype
 import time
+import os
+import magic
 
 
 class server:
+    base_dir = None
     status_code = None
     buffer_size = 100
     server_address = None
@@ -11,13 +14,16 @@ class server:
     client_address = None
     request = None
     response = None
+    file = None
+    path = None
 
     def __init__(self, ip, port):
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
         self.server_address = (str(ip), int(port))
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_socket.bind(self.server_address)
-        self.server_socket.listen(1)
+        self.server_socket.listen(10)
 
     def __del__(self):
         self.server_socket.close()
@@ -38,14 +44,17 @@ class server:
                 if request_raw:
                     # print(request_raw)
                     self.request = self.tokenize_request(request_raw)
-                    print(f'Request : {self.request["method"]} {self.request["path"]}')
-
+                    print(f'Request : {self.request["method"]} {self.request["url"]}\n')
+                    self.file, self.path = self.url_manager()
                     # answering the request
-                    self.status_code = 500
                     self.response = self.create_response()
-                    self.client_socket.sendall(self.response.encode('utf-8'))
-                    print(f'Response: {self.status_code} {self.request["method"]} {self.request["path"]}')
+                    self.client_socket.sendall(self.response)
+                    print(f'\nResponse: {self.status_code} {self.request["method"]} {self.request["url"]}')
 
+                    # try:
+                    #     print(self.response.decode('utf-8'))
+                    # except:
+                    #     print(self.response)
             finally:
                 self.client_socket.close()
                 print('\nclient socket closed')
@@ -65,10 +74,10 @@ class server:
         # spliting request data to lines
         tags = request.split('\r')
         first_tag, tags = tags[0], tags[1:]
-        # spliting first line=> method, path, protocol & version
+        # spliting first line=> method, url, protocol & version
         tmp = first_tag.split(' ')
         request_dict['method'] = tmp[0]
-        request_dict['path'] = tmp[1]
+        request_dict['url'] = tmp[1]
         request_dict['protocol'], request_dict['version'] = tmp[2].split('/')
 
         # data after first line :
@@ -86,16 +95,11 @@ class server:
 
         return request_dict
 
-    def content_type(self):
-        return 'text/html'
-        # need to install filetype library
+    def content_type(self, file):
+        # need to install magic library
         # returns extension or mime (html content type)
         # uses files magic number not extension
-        # ftype = filetype.guess(file)
-        # if ftype is not None:
-        #     return ftype.mime
-        # else:
-        #     return 'application/octet-stream'
+        return magic.from_buffer(file, mime=True)
         # here is an old way to do this with limited extensions:
         # if path.endswith(".html") or path.endswith(".txt")
         #     return "text/html"
@@ -123,34 +127,58 @@ class server:
     def create_content(self):
         content = ''
         if self.status_code == 200:
-            pass
+            content = self.file
         else:
             # if we have some other status code the error page:
-            content = f'''
-                <html>
-                <header><title>{self.status_code} - {self.status_text()}</title></header>
-                <body>
-                    </br></br>
-                    <h1 style="text-align:center; font-size:100px">{self.status_code}</h1>
-                    <h2 style="text-align:center; font-size:80px">{self.status_text()}</h2>
-                </body>
-                </html>
-            '''
-        # removing \n from content sides
-        return content.rstrip().lstrip()
+            # and removing \n from content sides then encoding it
+            content = '\n'.join((
+                '<html>',
+                '    <header>',
+                f'        <title>{self.status_code} - {self.status_text()}</title>',
+                '    </header>',
+                '    <body>',
+                '        <br><br>',
+                f'        <h1 style="text-align:center; font-size:100px">{self.status_code}</h1>',
+                f'        <h2 style="text-align:center; font-size:80px">{self.status_text()}</h2>',
+                '    </body>',
+                '</html>',
+            )).rstrip().lstrip().encode('utf-8')
+        return content
+
+    def url_mapper(self, url):
+        known_map = {
+            '/': 'docs/index.html',
+        }
+        new_url = known_map.get(url)
+        # if new_url is not None return it otherwise return given url
+        # if input url is our real url then deleting first / in the start of it
+        return new_url or url[1:]
+
+    def url_manager(self):
+        file = b''
+        path = self.request['url']
+        try:
+            url_path = self.url_mapper(self.request['url'])
+            path = os.path.join(self.base_dir, url_path)
+            with open(path, 'rb') as f:
+                file = f.read()
+            self.status_code = 200
+        except Exception as e:
+            self.status_code = 400
+        return file, path
 
     def create_response(self):
         content = self.create_content()
-        response = f'''
-            HTTP/1.1 {self.status_code} {self.status_text}
-            Date: {time.ctime()}
-            Content-Type: {self.content_type()}
-            Content-Length: {len(content)}
-
-            {content}
-        '''
+        content_type = self.content_type(content)
+        response = '\n'.join((
+            f"HTTP/1.1 {self.status_code} {self.status_text()}",
+            f"Date: {time.ctime()}",
+            f"Content-Type: {content_type}",
+            f"Content-Length: {len(content)}",
+        ))
+        response = response.lstrip().rstrip().encode('utf-8') + b'\n\n' + content
         # removing \n from response sides
-        return response.rstrip().lstrip()
+        return response
 
 
 if __name__ == '__main__':

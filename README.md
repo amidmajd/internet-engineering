@@ -8,3 +8,8 @@
    * Tokenizer
    * Url management
 
+   next steps would be:
+    * making the server multithreaded
+    * supporting post requests and a visual mechanism for testing post requests
+    * a proper status management mechanism
+    * shorted url support
