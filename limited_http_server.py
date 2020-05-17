@@ -18,6 +18,15 @@ class ServerError(Exception):
 
 
 class Server:
+    # here you can map your files and urls as known_url_map variable
+    # using this makes client be able to request for a shorted url and not the exact file
+    # you can add anyfile here , struct is like:
+    # "URL after site name" : "file relative address"
+    known_url_map = {
+        '/': 'docs/index.html',
+        '/test_img': 'docs/test.jpg'
+    }
+
     buffer_size = None
     server_connection_count = None
     server_address = None
@@ -123,7 +132,8 @@ class Server:
             raise ServerError(400, e)
 
     def content_type(self, file):
-        # need to install magic library
+        # for this function to work you would need to install magic library
+        # pip install python-magic
         # returns extension or mime (html content type)
         # using files magic number not extension
         mime = magic.from_buffer(file, mime=True)
@@ -175,14 +185,8 @@ class Server:
         return content
 
     def url_mapper(self, url):
-        # here you can map your files and urls
-        # using this makes client be able to request for a shorted url and not the exact file
-        # you can add anyfile here , struct is like:
-        # "URL after site name" : "file relative address"
-        known_map = {
-            '/': 'docs/index.html',
-        }
-        new_url = known_map.get(url)
+        # returns destination url as relative path
+        new_url = self.known_url_map.get(url)
         # if new_url is not None return it otherwise return given url
         # if input url is our real url then deleting first / in the start of it
         return new_url or url[1:]
@@ -219,5 +223,5 @@ class Server:
 
 
 if __name__ == '__main__':
-    Server = Server('127.0.0.1', 8080)  # create the server with ip:port
+    Server = Server('127.0.0.1', 1234)  # create the server with ip:port
     Server.run()
