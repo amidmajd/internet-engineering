@@ -18,11 +18,11 @@ class ServerError(Exception):
 
 
 class Server:
-    # here you can map your files and urls as known_url_map variable
+    # here you can map your files and urls as routes variable
     # using this makes client be able to request for a shorted url and not the exact file
     # you can add anyfile here , struct is like:
     # "URL after site name" : "file relative address"
-    known_url_map = {
+    routes = {
         '/': 'docs/index.html',
         '/test_img': 'docs/test.jpg'
     }
@@ -47,7 +47,8 @@ class Server:
         self.server_connections = int(c_count)
         # initiating a socket for server in TCP/IPv4 and given port and making the port reuseable
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server_socket.setsockopt(
+            socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_socket.bind(self.server_address)
         self.server_socket.listen(self.server_connections)
 
@@ -57,7 +58,8 @@ class Server:
 
     def run(self):
         while True:
-            print(f'\n\nWaiting for requests on {self.server_address[0]}:{self.server_address[1]} ...')
+            print(
+                f'\n\nWaiting for requests on {self.server_address[0]}:{self.server_address[1]} ...')
             # Wait for an incomming connection and accept
             self.client_socket, self.client_address = self.server_socket.accept()
             print('Connection accepted from:', self.client_address)
@@ -68,10 +70,12 @@ class Server:
                         # read the request
                         # getting full request from buffer then tokenizing it
                         # request is a dictionary with all headrs and content
-                        request_raw = self.client_socket.recv(self.buffer_size).decode('utf-8')
+                        request_raw = self.client_socket.recv(
+                            self.buffer_size).decode('utf-8')
                         if request_raw:
                             self.request = self.tokenize_request(request_raw)
-                            print(f'Request : {self.request["method"]} {self.request["url"]}')
+                            print(
+                                f'Request : {self.request["method"]} {self.request["url"]}')
                             # loading file in memory (because this is a small test server)
                             # this way server doesnt need to open and close file everytime
                             self.file, self.path = self.url_manager()
@@ -91,7 +95,8 @@ class Server:
                         print('SERVER ERROR :', e.status, e.message)
                     # sending response to client
                     self.client_socket.sendall(self.response)
-                    print(f'Response: {self.status_code} {self.request["method"]} {self.request["url"]}')
+                    print(
+                        f'Response: {self.status_code} {self.request["method"]} {self.request["url"]}')
                     # try:
                     #     print('\n' + self.response.decode('utf-8'))
                     # except:
@@ -111,7 +116,8 @@ class Server:
             tmp = first_tag.split(' ')
             request_dict['method'] = tmp[0]
             request_dict['url'] = tmp[1]
-            request_dict['protocol'], request_dict['version'] = tmp[2].split('/')
+            request_dict['protocol'], request_dict['version'] = tmp[2].split(
+                '/')
 
             # data after first line :
             for i, tag in enumerate(tags):
@@ -186,7 +192,7 @@ class Server:
 
     def url_mapper(self, url):
         # returns destination url as relative path
-        new_url = self.known_url_map.get(url)
+        new_url = self.routes.get(url)
         # if new_url is not None return it otherwise return given url
         # if input url is our real url then deleting first / in the start of it
         return new_url or url[1:]
