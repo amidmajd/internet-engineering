@@ -72,6 +72,7 @@ class Server:
                         # request is a dictionary with all headrs and content
                         request_raw = self.client_socket.recv(
                             self.buffer_size).decode('utf-8')
+                        # print(request_raw)
                         if request_raw:
                             self.request = self.tokenize_request(request_raw)
                             print(
@@ -97,11 +98,9 @@ class Server:
                     self.client_socket.sendall(self.response)
                     print(
                         f'Response: {self.status_code} {self.request["method"]} {self.request["url"]}')
-                    # try:
-                    #     print('\n' + self.response.decode('utf-8'))
-                    # except:
-                    #     print(self.response, '\n')
                     print()
+            except Exception as e:
+                print('SERVER ERROR :', e)
             finally:
                 self.client_socket.close()
                 print('Client socket closed')
@@ -223,11 +222,11 @@ class Server:
             f"Content-Type: {content_type}",
             f"Content-Length: {len(content)}",
         ))
-        response = response.lstrip().rstrip().encode('utf-8') + b'\n\n' + content
+        response = response.lstrip().rstrip().encode('utf-8') + b"\r\n\r\n" + content
         # removing \n from response sides and encoding the response to binary
         return response
 
 
 if __name__ == '__main__':
-    Server = Server('127.0.0.1', 1234)  # create the server with ip:port
-    Server.run()
+    server = Server('127.0.0.1', 1234)  # create the server with ip:port
+    server.run()
