@@ -1,7 +1,10 @@
 import socket
+import ssl
 import os
 import base64
 import magic
+import pdb
+from urllib.parse import urlsplit
 
 
 class Client:
@@ -12,7 +15,7 @@ class Client:
     response = None
     connection_life = "Keep-Alive"
 
-    def __init__(self, buff_size=4096000):
+    def __init__(self, buff_size=3276800):
         self.buffer_size = int(buff_size)
 
     def send_request(self, address):
@@ -21,12 +24,19 @@ class Client:
 
         self.address = self.tokenize_address(address)
 
-        try:
+        if self.address['protocol'] == "https":
+            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+            self.client_socket = ssl_context.wrap_socket(
+                self.client_socket, server_hostname=self.address["host"]
+            )
+            self.client_socket.connect((self.address["host"], self.address["port"]))
+        else:
             self.client_socket.connect(
-                (self.address['host'], int(self.address['port'])))
-            print(
-                f"\nConnection created with: {self.address['host']}:{self.address['port']}")
-            print()
+                (self.address['host'], self.address['port']))
+
+        print(f"\nConnection created with: {self.address['host']}:{self.address['port']}\n")
+
+        try:
             # send the query
             print(
                 f'Sending GET request to {self.address["host"]}:{self.address["port"]} ...'
@@ -35,55 +45,64 @@ class Client:
             self.request = self.create_get_request()
             self.client_socket.sendall(self.request)
 
+            # timeout to receive data completely
+            response_raw = b''
+            self.client_socket.settimeout(0.5)
             # read the response
             # getting full response from buffer then tokenizing it
             # response is a dictionary with all headers and content
-            response_raw = self.client_socket.recv(
-                self.buffer_size)
+            while True:
+                try:
+                    response_raw_temp = self.client_socket.recv(self.buffer_size)
+                    response_raw += response_raw_temp
+                except:
+                    break
 
             self.response = self.tokenize_response(response_raw)
-            print(
-                f'Response : {self.response["status"]} {self.response["status_code"]}\n'
-            )
-
             self.response_decode()
+
+            print(f"Response : {self.response['status']} {self.response['status_code']}")
+            print('Content-Length :', len(self.response["content"]))
 
         finally:
             self.client_socket.close()
             print('\nClient socket closed')
 
+        # saving a temp.html file of response content for testing purposes
+        with open('temp.html', 'w+') as html_file:
+            html_file.write(self.response['content'])
         return self.response
 
     def response_decode(self):
         content = self.response['content']
         mime = magic.from_buffer(content, mime=True)
-
-        if mime == 'image/jpeg':
-            pass
-        else:
-            self.response['content'] = self.response['content'].decode('utf-8')
+        self.response['content'] = self.response['content'].decode("utf-8", "ignore")
 
     def tokenize_address(self, address):
         address_dict = {}
-        address = address.split(':')
 
-        if "http" in address[0] or "https" in address[0]:
-            address_dict['protocol'] = address.pop(0)
-            address_dict['host'] = address.pop(0)[2:].split('/')[0]
-        else:
-            address_dict['protocol'] = "http"
-            address_dict['host'] = address.pop(0).split('/')[0]
+        # adding http if no protocol to get urlsplit working correctly
+        if "http" not in address or "https" not in address:
+            address = 'http://' + address
 
-        address = ''.join(address).split('/')
+        parsed = urlsplit(address)
+        print(address)
+        address_dict['protocol'] = parsed.scheme
+        address_dict['host'] = parsed.hostname
+        address_dict['port'] = parsed.port
+        address_dict['path'] = parsed.path
 
-        address_dict['port'] = address.pop(0)
-        if address_dict['port'] == "":
-            address_dict['port'] = 80
+        if address_dict['host'] is None:
+            raise Exception('Invalid Host')
 
-        if len(address) == 1 or len(address) == 0:
+        if address_dict['port'] is None:
+            if address_dict['protocol'] == 'https':
+                address_dict['port'] = 443
+            else:
+                address_dict['port'] = 80
+
+        if address_dict['path'] == '':
             address_dict['path'] = '/'
-        else:
-            address_dict['path'] = '/' + '/'.join(address)
 
         return address_dict
 
@@ -132,5 +151,8 @@ if __name__ == '__main__':
     client = Client()  # create the client instans
     # request to host:port
     # client.send_request('127.0.0.1:1234/')
-    # client.send_request('127.0.0.1:1234/docs/test.jpg')
+    # client.send_request('127.0.0.1:1234/files/test.jpg')
     client.send_request('google.com')
+    # client.send_request('https://www.google.com:443')
+    # client.send_request('http://youtube.com')
+    # client.send_request('https://vce.umz.ac.ir/samaweb/Login.aspx')
