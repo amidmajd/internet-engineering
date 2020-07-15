@@ -2,8 +2,6 @@ import socket
 import ssl
 import os
 import base64
-import magic
-import pdb
 from urllib.parse import urlsplit
 
 
@@ -15,7 +13,7 @@ class Client:
     response = None
     connection_life = "Keep-Alive"
 
-    def __init__(self, buff_size=3276800):
+    def __init__(self, buff_size=1024):
         self.buffer_size = int(buff_size)
 
     def send_request(self, address):
@@ -46,17 +44,23 @@ class Client:
             self.client_socket.sendall(self.request)
 
             # timeout to receive data completely
+            self.client_socket.settimeout(.6)
             response_raw = b''
-            self.client_socket.settimeout(0.5)
             # read the response
             # getting full response from buffer then tokenizing it
             # response is a dictionary with all headers and content
+            chunk = b''
             while True:
                 try:
-                    response_raw_temp = self.client_socket.recv(self.buffer_size)
-                    response_raw += response_raw_temp
-                except:
-                    break
+                    chunk = self.client_socket.recv(self.buffer_size)
+                    response_raw += chunk
+                except socket.timeout:
+                    # if no response yet then continue till we get a response
+                    if response_raw is None or response_raw == b'':
+                        continue
+                    # if chuck size is smaller than waiting buffer size then stop
+                    if len(chunk) < self.buffer_size:
+                        break
 
             self.response = self.tokenize_response(response_raw)
             self.response_decode()
@@ -74,15 +78,13 @@ class Client:
         return self.response
 
     def response_decode(self):
-        content = self.response['content']
-        mime = magic.from_buffer(content, mime=True)
         self.response['content'] = self.response['content'].decode("utf-8", "ignore")
 
     def tokenize_address(self, address):
         address_dict = {}
 
         # adding http if no protocol to get urlsplit working correctly
-        if "http" not in address or "https" not in address:
+        if "http" not in address and "https" not in address:
             address = 'http://' + address
 
         parsed = urlsplit(address)
@@ -152,7 +154,9 @@ if __name__ == '__main__':
     # request to host:port
     # client.send_request('127.0.0.1:1234/')
     # client.send_request('127.0.0.1:1234/files/test.jpg')
-    client.send_request('google.com')
+    # client.send_request('https://divapanjere.ir')
+    # client.send_request('http://umz.ac.ir')
+    client.send_request('www.google.com')
     # client.send_request('https://www.google.com:443')
     # client.send_request('http://youtube.com')
     # client.send_request('https://vce.umz.ac.ir/samaweb/Login.aspx')
