@@ -23,8 +23,8 @@ class Server:
     # you can add anyfile here , struct is like:
     # "URL after site name" : "file relative address"
     routes = {
-        '/': 'docs/index.html',
-        '/test_img': 'docs/test.jpg'
+        '/': 'files/index.html',
+        '/test_img': 'files/test.jpg'
     }
 
     buffer_size = None
