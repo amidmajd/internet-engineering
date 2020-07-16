@@ -1,7 +1,6 @@
 import socket
 import ssl
 import os
-import base64
 from urllib.parse import urlsplit
 
 
@@ -23,7 +22,7 @@ class Client:
         self.address = self.tokenize_address(address)
 
         if self.address['protocol'] == "https":
-            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
             self.client_socket = ssl_context.wrap_socket(
                 self.client_socket, server_hostname=self.address["host"]
             )
@@ -115,14 +114,14 @@ class Client:
         header = b''
         pattern = b''
         for i in range(len(response)):
-            pattern += response[i:i+1]
+            pattern += response[i:i + 1]
             if pattern.decode().find("\r\n\r\n") != -1:
                 break
             else:
-                header += response[i:i+1]
-                tmp = response[i:i+1]
-        header = header[:i-3].decode('utf-8').split('\n')
-        response_dict['content'] = response[i+1:]
+                header += response[i:i + 1]
+                tmp = response[i:i + 1]
+        header = header[:i - 3].decode('utf-8').split('\n')
+        response_dict['content'] = response[i + 1:]
 
         first_tag, tags = header[0], header[1:]
         # spliting first line=> status, status code, protocol & version
