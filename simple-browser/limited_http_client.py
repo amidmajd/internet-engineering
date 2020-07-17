@@ -1,6 +1,5 @@
 import socket
 import ssl
-import os
 from urllib.parse import urlsplit
 
 
@@ -64,7 +63,7 @@ class Client:
             self.response = self.tokenize_response(response_raw)
             self.response_decode()
 
-            print(f"Response : {self.response['status']} {self.response['status_code']}")
+            print(f"Response : {self.response['status_code']} {self.response['status']}")
             print('Content-Length :', len(self.response["content"]))
 
         finally:
@@ -74,6 +73,7 @@ class Client:
         # saving a temp.html file of response content for testing purposes
         with open('temp.html', 'w+') as html_file:
             html_file.write(self.response['content'])
+
         return self.response
 
     def response_decode(self):
@@ -127,8 +127,8 @@ class Client:
         # spliting first line=> status, status code, protocol & version
         tmp = first_tag.split(' ')
         response_dict['protocol'], response_dict['version'] = tmp[0].split('/')
-        response_dict['status'] = tmp[1]
-        response_dict['status_code'] = tmp[2]
+        response_dict['status'] = tmp[2]
+        response_dict['status_code'] = int(tmp[1])
 
         # data after the first line :
         for i, tag in enumerate(tags):
