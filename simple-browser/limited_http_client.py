@@ -9,7 +9,6 @@ class Client:
     client_socket = None
     request = None
     response = None
-    connection_life = "Keep-Alive"
 
     def __init__(self, buff_size=1024):
         self.buffer_size = int(buff_size)
@@ -41,17 +40,21 @@ class Client:
             self.request = self.create_get_request()
             self.client_socket.sendall(self.request)
 
-            # timeout to receive data completely
-            self.client_socket.settimeout(.6)
-            response_raw = b''
+            # timeout to receive data completely if network is weak
+            self.client_socket.settimeout(1)
             # read the response
             # getting full response from buffer then tokenizing it
             # response is a dictionary with all headers and content
             chunk = b''
+            response_raw = b''
             while True:
                 try:
                     chunk = self.client_socket.recv(self.buffer_size)
                     response_raw += chunk
+
+                    if '0\r\n\r\n' in chunk.decode("utf-8", "ignore"):
+                        break
+
                 except socket.timeout:
                     # if no response yet then continue till we get a response
                     if response_raw is None or response_raw == b'':
@@ -142,8 +145,7 @@ class Client:
     def create_get_request(self):
         request = '\r\n'.join((
             f"GET {self.address['path']} HTTP/1.1",
-            f"Host: {self.address['host']}",
-            f"Connection: {self.connection_life}" + "\r\n\r\n",
+            f"Host: {self.address['host']}" + "\r\n\r\n",
         )).encode('utf-8')
         return request
 
